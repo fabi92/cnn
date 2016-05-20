@@ -35,21 +35,29 @@ def train_network():
         , required=False, help='Activation Functions For The Perceptrons [tanh/sigmoid/relu]')  
     parser.add_argument('-d', '--dropout', type=bool, default=True, required=False, help='Set To True In Order To Activate Dropout')
 
-
     requiredNamed = parser.add_argument_group('required Arguments')
-    requiredNamed.add_argument('-d', '--dataset', type=str, required=True, help='Path To The Training Set')
+    requiredNamed.add_argument('-p', '--path', type=str, required=True, help='Path To The Training Set')
+    requiredNamed.add_argument('-d', '--dataset', type=str, choices=["mnist", "cifar"], required=True, help='Path To The Training Set')
    
     parsed = parser.parse_args()
 
-    (train_images, train_labels), (validation_images, validation_labels), \
-         (test_images, test_labels) = loadMNIST(parsed.dataset)
+    if parsed.dataset == "mnist":
+        (train_images, train_labels), (validation_images, validation_labels), \
+                (test_images, test_labels) = loadMNIST(parsed.path)
+        imageShape=(28, 28)
+        n_colors=1
+    else:
+        (train_images, train_labels), (validation_images, validation_labels), \
+                (test_images, test_labels) = loadCIFAR10Color(parsed.path)
+        imageShape=(32, 32)
+        n_colors=3
 
     number_train_images_batches = train_images.get_value(borrow=True).shape[0] // parsed.batchsize
     number_validation_images_batches = validation_images.get_value(borrow=True).shape[0] // parsed.batchsize
     number_test_images_batches = test_images.get_value(borrow=True).shape[0] // parsed.batchsize
 
     index = T.lscalar() 
-    imageData = T.matrix('imageData')
+    imageData = T.tensor4('imageData')
     imageLabels = T.ivector('imageLabels')
     isTrain = T.iscalar('is_train')
 
@@ -58,7 +66,9 @@ def train_network():
         target=imageLabels,
         batchsize=parsed.batchsize,
         fully_activation=activation_functions[parsed.activation],
-        nkerns=(10,10),
+        nkerns=(30,30),
+        colorchannels=n_colors,
+        imageShape=imageShape,
         isTrain=isTrain,
         dropout=parsed.dropout
     )
@@ -89,8 +99,8 @@ def train_network():
         inputs=[index],
         outputs=cnn.cost,
         givens={
-            imageData: train_images[index * parsed.batchsize: (index + 1) * parsed.batchsize],
-            imageLabels: train_labels[index * parsed.batchsize: (index + 1) * parsed.batchsize],
+            imageData: validation_images[index * parsed.batchsize: (index + 1) * parsed.batchsize],
+            imageLabels: validation_labels[index * parsed.batchsize: (index + 1) * parsed.batchsize],
             isTrain: np.cast['int32'](0)
         }
     )
@@ -99,8 +109,8 @@ def train_network():
         inputs=[index],
         outputs=cnn.cost,
         givens={
-            imageData: validation_images[index * parsed.batchsize: (index + 1) * parsed.batchsize],
-            imageLabels: validation_labels[index * parsed.batchsize: (index + 1) * parsed.batchsize],
+            imageData: test_images[index * parsed.batchsize: (index + 1) * parsed.batchsize],
+            imageLabels: test_labels[index * parsed.batchsize: (index + 1) * parsed.batchsize],
             isTrain: np.cast['int32'](0)
         }
     )
@@ -129,7 +139,7 @@ def train_network():
                 val_loss = np.mean([validate(currentValidationBatch)
                                      for currentValidationBatch in range(number_validation_images_batches)])
                 print("Epoch %d, Batch Index: %d / %d, Accuracy Mean Square Error wrt Validation Samples: %f" \
-                    % (epoch, minibatch_index,  number_train_images_batches, val_loss * 100))       
+                    % (epoch, minibatch_index,  number_train_images_batches, val_loss))       
                 
                 if val_loss < best_validation_loss:
                     if val_loss < best_validation_loss *  \

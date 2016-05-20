@@ -67,7 +67,7 @@ def train_network():
         target=imageLabels,
         batchsize=parsed.batchsize,
         fully_activation=activation_functions[parsed.activation],
-        nkerns=(10,10),
+        nkerns=(30,30),
         colorchannels=n_colors,
         imageShape=imageShape,
         isTrain=isTrain,

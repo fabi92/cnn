@@ -16,6 +16,10 @@ def loadMNIST(dataset, shared=True):
     valid_set_x, valid_set_y = valid_set
     train_set_x, train_set_y = train_set
 
+    test_set_x  = test_set_x.reshape(test_set_x.shape[0], 1, 28, 28)
+    valid_set_x  = valid_set_x.reshape(valid_set_x.shape[0], 1, 28, 28)
+    train_set_x = train_set_x.reshape(train_set_x.shape[0], 1, 28, 28)
+
     if not shared:
         return (train_set_x, train_set_y), (valid_set_x, valid_set_y), (test_set_x, test_set_y)
 

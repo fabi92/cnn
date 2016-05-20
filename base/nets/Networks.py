@@ -12,19 +12,20 @@ import theano
 import theano.tensor as T
 
 ###layers
-from ConvPoolLayers import ConvPoolLayer
+from ConvolutionLayers import ConvolutionLayer
+from PoolingLayers import MaxPoolingLayer
 from FeedForwardLayers import DropoutLayer
 from LogisticLayers import LogisticLayer
 from RegressionLayers import LinearRegressionLayer
 
 class SimpleLogisticCNN(object):
 
-    def __init__(self, input, target, batchsize, isTrain, dropout=False, nkerns=(5,5), colorchannels=1, imageShape=(28,28),fully_activation=T.tanh):
+    def __init__(self, input, target, batchsize, isTrain, dropout=False, nkerns=(30,30), colorchannels=1, imageShape=(28,28),fully_activation=T.tanh):
         #self.input = input.reshape((batchsize, colorchannels, imageShape[0], imageShape[1]))
         self.input = input
         self.rng = np.random.RandomState(1234)
 
-        self.convLayer1 = ConvPoolLayer(
+        self.convLayer1 = ConvolutionLayer(
             input=self.input,
             rng=self.rng,
             image_shape=(batchsize, colorchannels, imageShape[0], imageShape[1]),
@@ -32,21 +33,30 @@ class SimpleLogisticCNN(object):
             poolsize=(2, 2)
         )
         
+        self.poolingLayer1 = MaxPoolingLayer(
+            input=self.convLayer1.output,
+            poolsize=(2, 2)
+        )
+
         #####(shape1-5+1 , shape2-5+1) #####
         ##### maxpooling reduces this further to (1/2, 1/2) ####
         imageShape = ((imageShape[0]-5+1)/2,(imageShape[1]-5+1)/2)
-        self.convLayer2 = ConvPoolLayer(
-            input=self.convLayer1.output,
+        self.convLayer2 = ConvolutionLayer(
+            input=self.poolingLayer1.output,
             rng = self.rng,
             image_shape=(batchsize, nkerns[0], imageShape[0], imageShape[1]),
             filter_shape=(nkerns[1], nkerns[0], 5, 5),
             poolsize=(2, 2)
         )
         
+        self.poolingLayer2 = MaxPoolingLayer(
+            input=self.convLayer2.output,
+            poolsize=(2, 2)
+        )
 
         imageShape = ((imageShape[0]-5+1)/2,(imageShape[1]-5+1)/2)
         self.dropLayer1 = DropoutLayer(
-            input=self.convLayer2.output.flatten(2),
+            input=self.poolingLayer2.output.flatten(2),
             rng=self.rng,
             n_in=nkerns[1] * imageShape[0] * imageShape[1],
             n_hidden=500,
@@ -69,30 +79,44 @@ class SimpleLogisticCNN(object):
 
 class SimpleLRegressionCNN(object):
 
-    def __init__(self, input, target, batchsize, isTrain, dropout=False, nkerns=(5,5), fully_activation=T.tanh):
-        self.input = input.reshape((batchsize, 1, 28, 28))
+    def __init__(self, input, target, batchsize, isTrain, dropout=False, nkerns=(30,30), colorchannels=1, imageShape=(28,28),fully_activation=T.tanh):
+        self.input = input
         self.rng = np.random.RandomState(1234)
 
-        self.convLayer1 = ConvPoolLayer(
+        self.convLayer1 = ConvolutionLayer(
             input=self.input,
             rng=self.rng,
-            image_shape=(batchsize, 1, 28, 28),
-            filter_shape=(nkerns[0], 1, 5, 5),
+            image_shape=(batchsize, colorchannels, imageShape[0], imageShape[1]),
+            filter_shape=(nkerns[0], colorchannels, 5, 5),
+            poolsize=(2, 2)
+        )
+        
+        self.poolingLayer1 = MaxPoolingLayer(
+            input=self.convLayer1.output,
             poolsize=(2, 2)
         )
 
-        self.convLayer2 = ConvPoolLayer(
-            input=self.convLayer1.output,
+        #####(shape1-5+1 , shape2-5+1) #####
+        ##### maxpooling reduces this further to (1/2, 1/2) ####
+        imageShape = ((imageShape[0]-5+1)/2,(imageShape[1]-5+1)/2)
+        self.convLayer2 = ConvolutionLayer(
+            input=self.poolingLayer1.output,
             rng = self.rng,
-            image_shape=(batchsize, nkerns[0], 12, 12),
+            image_shape=(batchsize, nkerns[0], imageShape[0], imageShape[1]),
             filter_shape=(nkerns[1], nkerns[0], 5, 5),
             poolsize=(2, 2)
         )
+        
+        self.poolingLayer2 = MaxPoolingLayer(
+            input=self.convLayer2.output,
+            poolsize=(2, 2)
+        )
 
+        imageShape = ((imageShape[0]-5+1)/2,(imageShape[1]-5+1)/2)
         self.dropLayer1 = DropoutLayer(
-            input=self.convLayer2.output.flatten(2),
+            input=self.poolingLayer2.output.flatten(2),
             rng=self.rng,
-            n_in=nkerns[1] * 4 * 4,
+            n_in=nkerns[1] * imageShape[0] * imageShape[1],
             n_hidden=500,
             activation=fully_activation,
             dropout=dropout,
