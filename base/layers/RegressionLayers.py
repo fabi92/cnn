@@ -4,7 +4,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from Cost import mean_squared_error_loss
+from Cost import mean_squared_error_loss, squared_error_loss
 
 class LinearRegressionLayer(object):
     def __init__(self, input, target, rng, n_hidden):
@@ -31,6 +31,6 @@ class LinearRegressionLayer(object):
         )
 
         self.regression = T.dot(self.input, self.weights) + self.bias
-        self.cost = mean_squared_error_loss(self.regression, self.target)
+        self.cost = squared_error_loss(self.regression, self.target)
 
         self.params = [self.weights, self.bias]

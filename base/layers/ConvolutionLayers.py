@@ -36,3 +36,4 @@ class ConvolutionLayer(object):
 
         self.output = activation(self.conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
         self.params = [self.W, self.b]
+        self.outshape = (image_shape[0], filter_shape[0], image_shape[2]-filter_shape[2]+1, image_shape[3] - filter_shape[3] + 1)

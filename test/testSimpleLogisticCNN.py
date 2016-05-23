@@ -25,7 +25,7 @@ def train_network():
     ## parses the provided parameters according to the command line input
     parser = argparse.ArgumentParser(prog='Convolutional Neural Network', conflict_handler='resolve')
     
-    parser.add_argument('-l', '--learningrate', type=float, default=0.001, required=False, help='The Learning Rate')
+    parser.add_argument('-l', '--learningrate', type=float, default=1e-3, required=False, help='The Learning Rate')
     parser.add_argument('-m', '--momentum', type=float, default=0.95, required=False, help='The Momentum Rate')
     parser.add_argument('-w', '--weight_decay', type=float, default=5e-4, required=False, help='The Weight Decay Rate')
     parser.add_argument('-b', '--batchsize', type=int, default=20, required=False, help='Batch Size For Training')
@@ -47,11 +47,13 @@ def train_network():
                 (test_images, test_labels) = loadMNIST(parsed.path)
         imageShape=(28, 28)
         n_colors=1
-    else:
+    elif parsed.dataset == "cifar":
         (train_images, train_labels), (validation_images, validation_labels), \
                 (test_images, test_labels) = loadCIFAR10Color(parsed.path)
         imageShape=(32, 32)
         n_colors=3
+    else:
+        raise ValueError('Dataset Input Is Not Valud')
 
     number_train_images_batches = train_images.get_value(borrow=True).shape[0] // parsed.batchsize
     number_validation_images_batches = validation_images.get_value(borrow=True).shape[0] // parsed.batchsize

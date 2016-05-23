@@ -12,8 +12,10 @@ import theano
 import theano.tensor as T
 import argparse
 
-from LoadData import loadMNIST
-from Networks import SimpleLRegressionCNN
+from LoadData import loadMNIST, loadCIFAR10Color, loadFingernails
+from TestNetworks import SimpleLRegressionCNN
+from Networks import AlexNet
+from Plotter import livePlotTrError
 
 activation_functions = {
         "tanh": T.tanh,
@@ -25,7 +27,7 @@ def train_network():
     ## parses the provided parameters according to the command line input
     parser = argparse.ArgumentParser(prog='Convolutional Neural Network', conflict_handler='resolve')
     
-    parser.add_argument('-l', '--learningrate', type=float, default=0.0001, required=False, help='The Learning Rate')
+    parser.add_argument('-l', '--learningrate', type=float, default=1e-6, required=False, help='The Learning Rate')
     parser.add_argument('-m', '--momentum', type=float, default=0.95, required=False, help='The Momentum Rate')
     parser.add_argument('-w', '--weight_decay', type=float, default=5e-4, required=False, help='The Weight Decay Rate')
     parser.add_argument('-b', '--batchsize', type=int, default=20, required=False, help='Batch Size For Training')
@@ -37,7 +39,10 @@ def train_network():
 
     requiredNamed = parser.add_argument_group('required Arguments')
     requiredNamed.add_argument('-p', '--path', type=str, required=True, help='Path To The Training Set')
-    requiredNamed.add_argument('-d', '--dataset', type=str, choices=["mnist", "cifar"], required=True, help='Path To The Training Set')
+    requiredNamed.add_argument('-d', '--dataset', type=str, choices=["mnist", "cifar"], 
+        required=True, help='Path To The Training Set')
+    requiredNamed.add_argument('-n', '--networks', type=str, choices=["test", "alex"], 
+        required=True, help='Choose which CNN Should Be Deployed')
    
     parsed = parser.parse_args()
 
@@ -46,11 +51,14 @@ def train_network():
                 (test_images, test_labels) = loadMNIST(parsed.path)
         imageShape=(28, 28)
         n_colors=1
-    else:
+    elif parsed.dataset == "cifar":
         (train_images, train_labels), (validation_images, validation_labels), \
                 (test_images, test_labels) = loadCIFAR10Color(parsed.path)
         imageShape=(32, 32)
         n_colors=3
+    else:
+        raise ValueError('Dataset Input Is Not Valud')
+        
 
     number_train_images_batches = train_images.get_value(borrow=True).shape[0] // parsed.batchsize
     number_validation_images_batches = validation_images.get_value(borrow=True).shape[0] // parsed.batchsize
@@ -61,18 +69,32 @@ def train_network():
     imageLabels = T.ivector('imageLabels')
     isTrain = T.iscalar('is_train')
 
-    cnn = SimpleLRegressionCNN(
-        input=imageData,
-        target=imageLabels,
-        batchsize=parsed.batchsize,
-        fully_activation=activation_functions[parsed.activation],
-        nkerns=(30,30),
-        colorchannels=n_colors,
-        imageShape=imageShape,
-        isTrain=isTrain,
-        dropout=parsed.dropout
-    )
-
+    if parsed.networks == "test":
+        cnn = SimpleLRegressionCNN(
+            input=imageData,
+            target=imageLabels,
+            batchsize=parsed.batchsize,
+            fully_activation=activation_functions[parsed.activation],
+            nkerns=(30,30),
+            colorchannels=n_colors,
+            imageShape=imageShape,
+            isTrain=isTrain,
+            dropout=parsed.dropout
+        )
+    elif parsed.networks == "alex":
+        parsed.batchsize=10
+        cnn = AlexNet(
+            input=imageData,
+            target=imageLabels,
+            batchsize=parsed.batchsize,
+            fully_activation=activation_functions[parsed.activation],
+            colorchannels=n_colors,
+            imageShape=imageShape,
+            isTrain=isTrain,
+            dropout=parsed.dropout
+        )
+    else:
+        raise NotImplementedError('Expected Network IS NOT Implemented')
 
     #### Momentum + Weight Decay #####
     assert parsed.momentum >= 0. and parsed.momentum < 1.
@@ -128,17 +150,26 @@ def train_network():
     val_freq = min(number_train_images_batches, patience // 2)
     epoch = 0
 
+    trainSqrtErrs = [[], []]
+    idx_tr=0
     while (epoch < parsed.epochs) and (not done_looping):
         epoch = epoch + 1
 
         for minibatch_index in range(number_train_images_batches):
-            train(minibatch_index)
+            trainSqrtErrs[0].append(idx_tr)
+            sqrtErr = train(minibatch_index)
+            trainSqrtErrs[1].append(sqrtErr)
+            if len(trainSqrtErrs) > 1:
+                livePlotTrError(trainSqrtErrs)
+            idx_tr = idx_tr + 1
+            print("Epoch %d, Batch Index: %d / %d, Mean Square Error wrt Current Training Batch: %f" \
+                    % (epoch, minibatch_index,  number_train_images_batches, sqrtErr)) 
             idx = (epoch - 1) * number_train_images_batches + minibatch_index
 
             if (idx + 1) % val_freq == 0:
                 val_loss = np.mean([validate(currentValidationBatch)
                                      for currentValidationBatch in range(number_validation_images_batches)])
-                print("Epoch %d, Batch Index: %d / %d, Accuracy Mean Square Error wrt Validation Samples: %f" \
+                print("Epoch %d, Batch Index: %d / %d, Mean Square Error wrt Validation Samples: %f" \
                     % (epoch, minibatch_index,  number_train_images_batches, val_loss))       
                 
                 if val_loss < best_validation_loss:
@@ -150,7 +181,7 @@ def train_network():
                     best_validation_loss = val_loss
                     test_loss = np.mean([test(currentTestBatch)
                                    for currentTestBatch in range(number_test_images_batches)])
-                    print("\tEpoch %d, Batch Index: %d / %d, Accuracy Mean Square Error wrt Test Samples: %f" \
+                    print("\tEpoch %d, Batch Index: %d / %d, Mean Square Error wrt Test Samples: %f" \
                         % (epoch, minibatch_index,  number_train_images_batches, test_loss))
                     if test_loss < best_testing_loss:
                         print('\t\tNew Best Test Result')
